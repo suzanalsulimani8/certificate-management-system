@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>Certificate Management System (Demo)</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@300;500;800&display=swap');
+
+        body { font-family: 'Tajawal', sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; }
+        
+        /* واجهة التحكم */
+        .admin-panel { width: 350px; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); position: fixed; right: 20px; top: 20px; z-index: 100; border-top: 5px solid #1a472a; }
+        .form-group { margin-bottom: 8px; }
+        label { display: block; font-size: 11px; font-weight: bold; color: #444; }
+        input, select { width: 100%; padding: 7px; border: 1px solid #ddd; border-radius: 5px; font-family: 'Tajawal'; font-size: 12px; }
+        
+        .btn { width: 100%; padding: 10px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; color: white; margin-top: 5px; }
+        .btn-save { background: #1a472a; }
+        .btn-excel { background: #1a472a; }
+
+        /* منطقة العرض - محاكاة حجم الورقة الحقيقي */
+        .preview-container { margin-right: 390px; display: flex; justify-content: center; }
+        
+        #certificate-area {
+            width: 1123px; height: 794px; /* قياس A4 Landscape بدقة 96dpi */
+            position: relative; background-color: white; overflow: hidden;
+            box-shadow: 0 0 20px rgba(0,0,0,0.2);
+        }
+
+        .bg-img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        .logo { position: absolute; top: -20px; right: 10px; width: 200px; z-index: 10; }
+
+        .content { 
+            position: absolute; top: 100px; width: 100%; text-align: center; z-index: 5; 
+            display: flex; flex-direction: column; align-items: center;
+        }
+
+        .title { font-family: 'Amiri', serif; font-size: 40px; color: #a37e2c; font-weight: bold; margin-bottom: 40px; }
+        
+        .text-block { 
+            font-size: 25px; color: #333; line-height: 1.6; width: 85%;
+        }
+
+        .highlight { font-weight: 900; color: #000; }
+        
+        .footer-section { margin-top: 50px; }
+        .m-title { font-size: 29px; color: #a37e2c; font-weight: bold; margin-bottom: 5px; }
+        .m-name { font-size: 27px; color: #a37e2c; font-weight: 800; }
+
+        /* لودر التحميل */
+        .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 1000; color: white; flex-direction: column; justify-content: center; align-items: center; }
+        
+        /* إخفاء السكرول بار للمعاينة لتجنب ظهورها في الصورة */
+        #certificate-area::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="overlay" id="loader">
+    <h2>جاري معالجة الشهادة كصورة عالية الدقة...</h2>
+    <p>سيتم بدأ التحميل تلقائياً خلال ثوانٍ</p>
+</div>
+
+<div class="admin-panel">
+    <h3 style="text-align: center; margin-top: 0; color: #1a472a;">لوحة التحكم</h3>
+    <div class="form-group"><label>الاسم:</label><input type="text" id="inName"  oninput="update()"></div>
+    <div class="form-group"><label>الهوية:</label><input type="text" id="inID"  oninput="update()"></div>
+    <div class="form-group"><label>الجامعة:</label><input type="text" id="inUni"  oninput="update()"></div>
+    <div class="form-group"><label>التخصص:</label><input type="text" id="inMajor"  oninput="update()"></div>
+    <div class="form-group"><label>الأسابيع:</label><input type="number" id="inWeeks"  oninput="update()"></div>
+    <div class="form-group"><label>البداية:</label><input type="text" id="inStart"  oninput="update()"></div>
+    <div class="form-group"><label>النهاية:</label><input type="text" id="inEnd"  oninput="update()"></div>
+    <div class="form-group">
+        <label>الجنس:</label>
+        <select id="inGender" onchange="update()">
+            <option value="female">أنثى</option>
+            <option value="male">ذكر</option>
+        </select>
+    </div>
+    <button class="btn btn-save" onclick="exportPDF()">حفظ كملف PDF</button>
+    <hr>
+    <label>رفع إكسل:</label>
+    <input type="file" id="excelFile" accept=".xlsx, .xls">
+    <button class="btn btn-excel" onclick="runExcel()">تصدير الكل</button>
+</div>
+
+<div class="preview-container">
+    <div id="certificate-area">
+        <img src="cov.jpeg" class="bg-img">
+        <img src="logo.png" class="logo" onerror="this.style.display='none'"> <!-- Logo removed for demo version -->
+
+        
+        <div class="content">
+            <div class="title">شهادة إتمام تدريب تعاوني</div>
+            
+            <div class="text-block">
+                    تشهد هذه الجهة بأن
+ <span id="t1">المتدربة</span> / <br>
+                <span class="highlight" id="outName"></span> بموجب الهوية رقم : <span class="highlight" id="outID"></span><br>
+                من <span id="outUni"></span> قسم <span id="outMajor"></span><br>
+                قد <span id="t2">أنهت</span> بنجاح البرنامج التدريبي بقسم الدعم الفني والتحول الرقمي<br>
+                وذلك بمعدل (<span id="outWeeks" class="highlight"></span>) أسبوع <br>
+                من تاريخ <span id="outStart"></span> إلى <span id="outEnd"></span><br>
+                
+                <div style="font-size: 24px; margin-top: 25px;">
+                    وقد تدربت في الأقسام التالية: <br>
+                    (دعم الشبكة - دعم الأنظمة - دعم الأمن السيبراني - دعم المستخدمين - الصيانة)
+                </div>
+                <br>
+                    <div class="m-title">مدير القسم</div>
+                    <div class="m-name">Authorized Signature</div>
+            </div>
+        </div>
+    </div>
+</div>
+<div style="position:absolute; bottom:15px; width:100%; text-align:center; font-size:12px; color:#666;">
+    This system is a demo project created for portfolio purposes only and is not an official system.
+</div>
+
+
+<script>
+    function update() {
+        const g = document.getElementById('inGender').value;
+        document.getElementById('outName').innerText = document.getElementById('inName').value;
+        document.getElementById('outID').innerText = document.getElementById('inID').value;
+        document.getElementById('outUni').innerText = document.getElementById('inUni').value;
+        document.getElementById('outMajor').innerText = document.getElementById('inMajor').value;
+        document.getElementById('outWeeks').innerText = document.getElementById('inWeeks').value;
+        document.getElementById('outStart').innerText = document.getElementById('inStart').value;
+        document.getElementById('outEnd').innerText = document.getElementById('inEnd').value;
+        document.getElementById('t1').innerText = (g === 'female' ? 'المتدربة' : 'المتدرب');
+        document.getElementById('t2').innerText = (g === 'female' ? 'أنهت' : 'أنهى');
+    }
+
+async function exportPDF() {
+        const area = document.getElementById('certificate-area');
+        const name = document.getElementById('outName').innerText;
+        document.getElementById('loader').style.display = 'flex';
+
+        try {
+            const canvas = await html2canvas(area, {
+                scale: 2, // جودة التصوير
+                useCORS: true,
+                allowTaint: true,
+                logging: false
+                // لاحظ هنا حذفنا العرض والارتفاع الثابتين ليأخذ حجم العنصر الحقيقي
+            });
+
+            const imgData = canvas.toDataURL('image/png');
+            
+            // استخراج الأبعاد من الـ Canvas الناتج مباشرة
+            const imgWidth = canvas.width;
+            const imgHeight = canvas.height;
+
+            const { jsPDF } = window.jspdf;
+            
+            // إنشاء ملف PDF بنفس أبعاد الصورة الناتجة تماماً
+            const pdf = new jsPDF({
+                orientation: imgWidth > imgHeight ? 'l' : 'p', // تحديد الاتجاه تلقائياً (أفقي أو طولي)
+                unit: 'px',
+                format: [imgWidth, imgHeight] // استخدام أبعاد الصورة كحجم للصفحة
+            });
+            
+            pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+            pdf.save(`شهادة - ${name}.pdf`);
+            
+        } catch (e) {
+            console.error(e);
+            alert("حدث خطأ في النظام");
+        }
+        document.getElementById('loader').style.display = 'none';
+    }
+
+    function runExcel() {
+        const file = document.getElementById('excelFile').files[0];
+        if(!file) return alert("اختر ملف أولاً");
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+            const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+            
+            for(let row of rows) {
+                document.getElementById('inName').value = row['الاسم'] || '';
+                document.getElementById('inID').value = row['الهوية'] || '';
+                document.getElementById('inUni').value = row['الجامعة'] || '';
+                document.getElementById('inMajor').value = row['التخصص'] || '';
+                document.getElementById('inWeeks').value = row['الأسابيع'] || '';
+                document.getElementById('inStart').value = row['البداية'] || '';
+                document.getElementById('inEnd').value = row['النهاية'] || '';
+                document.getElementById('inGender').value = (row['الجنس'] === 'ذكر' ? 'male' : 'female');
+                update();
+                await new Promise(r => setTimeout(r, 700)); // انتظار الرندر
+                await exportPDF();
+            }
+            alert("اكتمل التصدير الجماعي");
+        };
+        reader.readAsArrayBuffer(file);
+    }
+</script>
+</body>
+</html>
