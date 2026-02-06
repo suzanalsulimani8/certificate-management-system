@@ -1,6 +1,7 @@
 # Certificate Management System (Demo)
 
 A web-based system designed to automate and simplify certificate creation.
+🔗 Live Demo: [https://suzanalsulimani8.github.io/personal-terminal-website/](https://suzanalsulimani8.github.io/certificate-management-system/)
 
 ## ✨ Features
 - Live certificate preview
